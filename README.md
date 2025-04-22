@@ -1,4 +1,5 @@
 📝 Descrição do Projeto
+
 O Apoio-Ruas-App é um projeto acadêmico em equipe (até 3 integrantes) voltado a causas sociais. Ele permite que usuários:
 Visualizem recursos e serviços para moradores de rua.
 Cadastrem-se para oferecer ajuda (formulários).
