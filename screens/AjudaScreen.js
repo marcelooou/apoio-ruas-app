@@ -1,118 +1,346 @@
 // screens/AjudaScreen.js
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  Linking,
-  ScrollView,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {View,Text,StyleSheet,Image,TouchableOpacity,Linking,ScrollView,FlatList,TextInput,ActivityIndicator,} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import Header from '../components/Header';
+import api from '../services/api';
 
 export default function AjudaScreen() {
-  const abrirSiteGoverno = () => Linking.openURL('https://www.gov.br/mdh');
+  const [cidade, setCidade] = useState('São Paulo');
+  const [categoria, setCategoria] = useState('assistencia');
+  const [locais, setLocais] = useState([]);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState(null);
+
+  const categorias = [
+    { id: 'assistencia', nome: 'Assistência Social', icone: 'people' },
+    { id: 'abrigos', nome: 'Abrigos', icone: 'home' },
+    { id: 'alimentacao', nome: 'Alimentação', icone: 'fast-food' }
+  ];
+
+  const buscarLocais = async () => {
+    if (!cidade) return;
+    
+    setCarregando(true);
+    setErro(null);
+    
+    try {
+      let resultado = [];
+      
+      if (categoria === 'assistencia') {
+        resultado = await api.buscarLocaisAssistencia(cidade);
+      } else if (categoria === 'abrigos') {
+        resultado = await api.buscarAbrigos(cidade);
+      } else if (categoria === 'alimentacao') {
+        resultado = await api.buscarPontosAlimentacao(cidade);
+      }
+      
+    
+      setLocais(resultado);
+      
+    } catch (error) {
+      console.error(error);
+      setErro('Não foi possível carregar os locais. Tente novamente.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  
+  useEffect(() => {
+    buscarLocais();
+  }, [categoria]);
+
+  const abrirMapa = (item) => {
+    const url = `https://www.google.com/maps/search/?api=1&query=${item.coordenadas.latitude},${item.coordenadas.longitude}`;
+    Linking.openURL(url);
+  };
+
+  const getImagemCategoria = (categoria) => {
+    if (categoria === 'Assistência Social') return require('../assets/ajuda1.jpg');
+    if (categoria === 'Abrigo') return require('../assets/ajuda2.jpg');
+    if (categoria === 'Alimentação') return require('../assets/ajuda3.jpg');
+    return require('../assets/ajuda4.jpg');
+  };
 
   return (
-    <View style={styles.flexContainer}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.titulo}>Apoio Social a Pessoas em Situação de Rua</Text>
+    <View style={styles.container}>
+      <Header title="Buscar Ajuda" />
+      
+      <View style={styles.searchContainer}>
+        <View style={styles.inputContainer}>
+          <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Digite sua cidade"
+            value={cidade}
+            onChangeText={setCidade}
+            onSubmitEditing={buscarLocais}
+          />
+          {cidade ? (
+            <TouchableOpacity onPress={() => setCidade('')}>
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         
-        <Text style={styles.subtitulo}>
-          Conheça serviços de apoio social que oferecem alimentação, abrigo e outros recursos para quem precisa.
-        </Text>
-
-        <Text style={styles.descricao}>
-          O Governo Federal oferece diversos recursos para ajudar pessoas em situação de vulnerabilidade social.
-        </Text>
-
-        <TouchableOpacity style={styles.botao} onPress={abrirSiteGoverno}>
-          <Text style={styles.botaoTexto}>Acessar Site de Apoio do Governo</Text>
+        <TouchableOpacity style={styles.searchButton} onPress={buscarLocais}>
+          <Text style={styles.searchButtonText}>Buscar</Text>
         </TouchableOpacity>
-      </ScrollView>
-
-      {/* Row de 3 imagens no rodapé */}
-      <View style={styles.imagesRow}>
-        <Image
-          source={require('../assets/ajuda1.jpg')}
-          style={styles.footerImageWide}
-        />
-        <Image
-          source={require('../assets/ajuda3.jpg')}
-          style={styles.footerImageStretch}  // Aqui esticamos a ajuda3
-        />
-        <Image
-          source={require('../assets/ajuda2.jpg')}
-          style={styles.footerImageWide}
-        />
       </View>
+      
+      <View style={styles.categoriasList}>
+        {categorias.map((cat) => (
+          <TouchableOpacity
+            key={cat.id}
+            style={[
+              styles.categoriaItem,
+              categoria === cat.id && styles.categoriaSelected
+            ]}
+            onPress={() => setCategoria(cat.id)}
+          >
+            <Ionicons 
+              name={cat.icone} 
+              size={22} 
+              color={categoria === cat.id ? '#fff' : '#2980b9'} 
+            />
+            <Text 
+              style={[
+                styles.categoriaText,
+                categoria === cat.id && styles.categoriaTextSelected
+              ]}
+            >
+              {cat.nome}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {carregando ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2980b9" />
+          <Text style={styles.loadingText}>Buscando locais...</Text>
+        </View>
+      ) : erro ? (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={36} color="#e74c3c" />
+          <Text style={styles.errorText}>{erro}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={buscarLocais}>
+            <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={locais}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="information-circle" size={36} color="#999" />
+              <Text style={styles.emptyText}>Nenhum local encontrado. Tente outra cidade ou categoria.</Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <Image 
+                source={getImagemCategoria(item.categoria)} 
+                style={styles.cardImage} 
+              />
+              <View style={styles.cardContent}>
+                <View style={styles.categoriaTag}>
+                  <Text style={styles.categoriaTagText}>{item.categoria}</Text>
+                </View>
+                <Text style={styles.cardTitle}>{item.nome}</Text>
+                <Text style={styles.cardAddress}>{item.endereco}</Text>
+                
+                <TouchableOpacity 
+                  style={styles.mapButton}
+                  onPress={() => abrirMapa(item)}
+                >
+                  <Ionicons name="map" size={18} color="#fff" />
+                  <Text style={styles.mapButtonText}>Ver no Mapa</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flexContainer: {
+  container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  container: {
-    padding: 20,
-    paddingBottom: 150, // espaço para as imagens de rodapé
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
-  titulo: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    textAlign: 'center',
-    marginBottom: 10,
+  inputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    marginRight: 10,
   },
-  subtitulo: {
+  searchIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    height: 40,
     fontSize: 16,
-    color: '#34495e',
-    textAlign: 'center',
-    marginBottom: 20,
-    fontStyle: 'italic',
   },
-  descricao: {
-    fontSize: 16,
-    color: '#34495e',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  botao: {
+  searchButton: {
     backgroundColor: '#2980b9',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 50,
-    alignSelf: 'center',
+    paddingHorizontal: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  categoriasList: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  categoriaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e3f2fd',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    marginRight: 10,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  categoriaSelected: {
+    backgroundColor: '#2980b9',
+  },
+  categoriaText: {
+    marginLeft: 5,
+    fontSize: 12,
+    color: '#2980b9',
+    fontWeight: '500',
+  },
+  categoriaTextSelected: {
+    color: '#fff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
     marginBottom: 20,
   },
-  botaoTexto: {
+  retryButton: {
+    backgroundColor: '#2980b9',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  listContent: {
+    padding: 15,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    marginBottom: 15,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  cardImage: {
+    width: '100%',
+    height: 150,
+  },
+  cardContent: {
+    padding: 15,
+  },
+  categoriaTag: {
+    backgroundColor: '#e3f2fd',
+    alignSelf: 'flex-start',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  categoriaTagText: {
+    color: '#2980b9',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
+    marginBottom: 5,
+    color: '#333',
   },
-  imagesRow: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
+  cardAddress: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 15,
+  },
+  mapButton: {
+    backgroundColor: '#27ae60',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 5,
   },
-  footerImageWide: {
-    width: 200,
-    height: undefined,
-    aspectRatio: 16 / 9,   // para ajuda1 e ajuda2
-    borderRadius: 10,
-    resizeMode: 'cover',
-  },
-  footerImageStretch: {
-    width: 200,         // largura fixa para manter o alinhamento
-    height: 200,        // altura definida para "esticar" a imagem
-    borderRadius: 10,
-    resizeMode: 'stretch',  // aqui esticamos a imagem para cobrir a área
+  mapButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    marginLeft: 5,
   },
 });
